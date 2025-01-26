@@ -1,8 +1,9 @@
-from __future__ import annotations
+from __future__ import annotations, with_statement
 
 from functools import cache
+from itertools import chain
 import json
-from typing import Any, Callable, Literal, Optional, Sequence, TypeAlias
+from typing import Any, Callable, Literal, Optional, Sequence, TypeAlias, get_args
 import requests
 import os
 
@@ -16,8 +17,18 @@ DATASET: TypeAlias = Literal["acs/acs5", "dec/sf3"] | str
 # TODO: add more geographies
 GEOGRAPHY: TypeAlias = Literal["us", "region", "division", "state", "county"]
 
-# base url for census api
-BASE_URL = "https://api.census.gov/data/{year}/{dataset}"
+ACS_VERSION: TypeAlias = Literal["acs1", "acs3", "acs5"]
+
+BASE_API_URL = "https://api.census.gov/data/{year}/{dataset}"
+
+MOST_RECENT_ACS_YEAR = 2023
+
+# TODO: add support for getting entire groups of variables
+#   (use the groups(...) parameter in the census api)
+
+# TODO: add docstrings
+
+# TODO: add examples directory
 
 
 def _df_from_api_response(response: list[list[Any]]) -> pl.DataFrame:
@@ -34,6 +45,20 @@ def _fetch(url: str, params: dict[str, Any]):
         raise RuntimeError("Unexpected response from Census API.")
 
     return response.content
+
+
+def _arrange_columns(df: pl.DataFrame) -> pl.DataFrame:
+    all_columns = [
+        "year",
+        *get_args(GEOGRAPHY),
+        "concept",
+        "label",
+        "variable",
+        "value",
+        "se",
+    ]
+
+    return df.select(c for c in all_columns if c in df.columns)
 
 
 class Census:
@@ -68,13 +93,13 @@ class Census:
         return json.loads(self._fetch(url, params))
 
     @cache
-    def _get_variable_info(
+    def get_metadata(
         self,
         dataset: DATASET,
         year: int,
     ):
 
-        url = BASE_URL.format(year=year, dataset=dataset) + f"/variables.json"
+        url = BASE_API_URL.format(year=year, dataset=dataset) + f"/variables.json"
         variables = self._api_req(url).get("variables")
 
         df = pl.from_records(
@@ -92,12 +117,13 @@ class Census:
             .sort(pl.col("variable"))
         )
 
-    def _get_variables(
+    def get_variables(
         self,
         dataset: DATASET,
         years: Sequence[int],
         variables: Sequence[str],
         geography: GEOGRAPHY = "us",
+        include_metadata=True,
     ) -> pl.DataFrame:
 
         params = {
@@ -106,12 +132,10 @@ class Census:
         }
 
         # construct endpoint urls
-        urls = [BASE_URL.format(year=year, dataset=dataset) for year in years]
+        urls = [BASE_API_URL.format(year=year, dataset=dataset) for year in years]
 
         # fetch api responses
         responses = [self._api_req(url, params) for url in urls]
-
-        # get variable labels/values
 
         # convert to dataframe
         estimates = (
@@ -125,20 +149,78 @@ class Census:
                 # TODO: deal with exception values
                 pl.col("value").cast(pl.Float32),
             )
+            .sort("year", geography, "variable")
         )
 
-        metadata = self._get_variable_info(dataset, years[0])
+        if not include_metadata:
+            return estimates.pipe(_arrange_columns)
+
+        metadata = self.get_metadata(dataset, years[0])
 
         return estimates.join(
             metadata,
             on="variable",
             how="left",
             validate="m:1",
-        ).select(
-            "year",
-            geography,
-            "concept",
-            "label",
-            "variable",
-            "value",
+        ).pipe(_arrange_columns)
+
+    def acs(
+        self,
+        variables: Sequence[str],
+        acs_version: ACS_VERSION = "acs5",
+        geography: GEOGRAPHY = "us",
+        years: Optional[Sequence[int]] = None,
+        include_ses=True,
+        include_metadata=True,
+    ) -> pl.DataFrame:
+
+        dataset = f"acs/{acs_version}"
+
+        # if years isn't passed, use all available years
+        years = years or range(2004 + int(acs_version[-1]), MOST_RECENT_ACS_YEAR + 1)
+
+        # standardize acs variable names (make sure they all end in E)
+        base_variable_names = {v.strip("EM") for v in variables}
+        variables = [f"{v}E" for v in base_variable_names]
+
+        # include margins of error
+        if include_ses:
+            variables += [f"{v}M" for v in base_variable_names]
+
+        # call to API
+        response = self.get_variables(
+            dataset=dataset,
+            variables=variables,
+            years=years,
+            geography=geography,
+            include_metadata=False,
         )
+
+        # reshape so moes and estimates are the same row
+        df = (
+            response.with_columns(
+                pl.col("variable").str.strip_chars_end("EM"),
+                pl.col("variable").str.extract("(E|M)$").alias("type"),
+            )
+            .pivot(
+                on="type",
+                values="value",
+                index=["year", geography, "variable"],
+                maintain_order=True,
+            )
+            .rename({"E": "value"})
+        )
+
+        if include_ses:
+            df = df.with_columns(pl.col("M").mul(1 / 1.645).alias("se")).drop("M")
+
+        if include_metadata:
+            df = df.join(
+                self.get_metadata(dataset, years[0]),
+                how="left",
+                left_on=pl.col("variable") + "E",
+                right_on="variable",
+                validate="m:1",
+            ).pipe(_arrange_columns)
+
+        return df
