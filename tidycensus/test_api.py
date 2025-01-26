@@ -1,6 +1,6 @@
 from tidycensus import Census
 
-def test_api():
+def test_acs():
     api = Census(cache_verbosity=0)
 
     variables = ["B19013_001E", "B19013A_001E"]
