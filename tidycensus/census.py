@@ -44,14 +44,15 @@ class Census:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        cache_directory: Optional[str] = "/tmp/census-api-cache",
+        cache_directory: Optional[str] = "/tmp/tidycensus-cache",
+        cache_verbosity: int = 0,
     ):
         # take api key from parameter, then environment, then omit
         self._api_key = api_key or os.environ.get("CENSUS_API_KEY") or None
 
         # cache the api responses if cache_directory is set, otherwise don't
         self._fetch = (
-            Memory(cache_directory, verbose=1).cache(_fetch)
+            Memory(cache_directory, verbose=cache_verbosity).cache(_fetch)
             if cache_directory
             else _fetch
         )
@@ -141,19 +142,3 @@ class Census:
             "variable",
             "value",
         )
-
-
-if __name__ == "__main__":
-    # TODO: move to tests
-    api = Census()
-
-    variables = ["B19013_001E", "B19013A_001E"]
-    geography = "state"
-    dataset = "acs/acs5"
-    years = [2010, 2012]
-
-    df = api._get_variables(dataset, years, variables, geography=geography)
-
-
-# response = requests.get(url, params).json()
-# df = pl.from_records(response[1:], schema=response[0], orient="row")

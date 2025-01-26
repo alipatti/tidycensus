@@ -1,1 +1,1 @@
-from census import Census
+from tidycensus.census import Census
