@@ -1,7 +1,6 @@
 from __future__ import annotations, with_statement
 
 from functools import cache
-from itertools import chain
 import json
 from typing import Any, Callable, Literal, Optional, Sequence, TypeAlias, get_args
 import requests
@@ -145,7 +144,7 @@ class Census:
             )
             .unpivot(on=variables, index=["year", geography])
             .with_columns(
-                pl.col("state").str.to_integer(),
+                pl.col(geography).str.to_integer(),
                 # TODO: deal with exception values
                 pl.col("value").cast(pl.Float32),
             )
