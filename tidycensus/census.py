@@ -1,10 +1,9 @@
 from __future__ import annotations, with_statement
 
-from functools import cache, reduce
+from functools import reduce
 import json
 from typing import Any, Callable, Literal, Optional, Sequence, TypeAlias, get_args
 import requests
-from operator import add
 import os
 
 from rich import print
@@ -99,24 +98,26 @@ class Census:
 
         return json.loads(self._fetch(url, params))
 
-    @cache
     def get_metadata(
         self,
         dataset: DATASET,
-        year: int,
+        years: int | Sequence[int],
     ):
 
-        url = BASE_API_URL.format(year=year, dataset=dataset) + f"/variables.json"
-        variables = self._api_req(url).get("variables")
+        if not isinstance(years, int):
+            return pl.concat(self.get_metadata(dataset, year) for year in years)
 
-        df = pl.from_records(
-            [{"variable": k} | v for k, v in variables.items()],
-            orient="row",
-        )
+        url = BASE_API_URL.format(year=years, dataset=dataset) + f"/variables.json"
+        response = self._api_req(url).get("variables")
 
         return (
-            df.filter(pl.col("predicateOnly").is_null())
+            pl.from_records(
+                [{"variable": k} | v for k, v in response.items()],
+                orient="row",
+            )
+            .filter(pl.col("predicateOnly").is_null())
             .select(
+                pl.lit(years).alias("year"),
                 "variable",
                 "concept",
                 pl.col("label").str.split("!!"),
@@ -168,11 +169,11 @@ class Census:
         if not include_metadata:
             return estimates.pipe(_arrange_columns)
 
-        metadata = self.get_metadata(dataset, years[0])
+        metadata = self.get_metadata(dataset, years)
 
         return estimates.join(
             metadata,
-            on="variable",
+            on=["year", "variable"],
             how="left",
             validate="m:1",
         ).pipe(_arrange_columns)
@@ -227,13 +228,13 @@ class Census:
         if include_ses:
             df = df.with_columns(pl.col("M").mul(1 / 1.645).alias("se")).drop("M")
 
-        if include_metadata:
-            df = df.join(
-                self.get_metadata(dataset, years[0]),
-                how="left",
-                left_on=pl.col("variable") + "E",
-                right_on="variable",
-                validate="m:1",
-            ).pipe(_arrange_columns)
+        if not include_metadata:
+            return df.pipe(_arrange_columns)
 
-        return df
+        return df.join(
+            self.get_metadata(dataset, years),
+            how="left",
+            left_on=["year", pl.col("variable") + "E"],
+            right_on=["year", "variable"],
+            validate="m:1",
+        ).pipe(_arrange_columns)

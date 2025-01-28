@@ -1,4 +1,3 @@
-import itertools
 from tidycensus import Census
 
 
@@ -20,6 +19,10 @@ GEO = "state"
 YEARS = [2010, 2012]
 
 API = Census(cache_verbosity=2)
+
+
+def test_metadata():
+    df = API.get_metadata("acs/acs5", [2010])
 
 
 def test_get_variables():
@@ -64,9 +67,12 @@ def test_acs_metadata_ses():
         geography=GEO,
         include_ses=True,
         include_metadata=True,
+        years=YEARS,
     )
 
     assert df.columns == ["year", GEO, "concept", "label", "variable", "value", "se"]
+
+    assert df.get_column("concept").unique().len() == len(YEARS) * len(ACS_VARS)
 
 
 def test_acs_county():
