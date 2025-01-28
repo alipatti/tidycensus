@@ -1,9 +1,20 @@
+import itertools
 from tidycensus import Census
 
 
 VARS = ["B19013_001E", "B19013A_001E"]
 # variety of types (trailing E, M, no trailing char)
 ACS_VARS = ["B19013A_001", "B19013B_001M", "B19013C_001E"]
+
+acs_median_incomes = {
+    "Pooled": "B19013_001",
+    "White": "B19013A_001",
+    "Black": "B19013B_001",
+    "AIAN": "B19013C_001",
+    "Asian": "B19013D_001",
+    "Non-Hispanic White": "B19013H_001",
+    "Hispanic": "B19013I_001",
+}
 
 GEO = "state"
 YEARS = [2010, 2012]
@@ -56,3 +67,15 @@ def test_acs_metadata_ses():
     )
 
     assert df.columns == ["year", GEO, "concept", "label", "variable", "value", "se"]
+
+
+def test_acs_county():
+
+    df = API.acs(
+        list(acs_median_incomes.values()),
+        geography="county",
+        years=[2010],
+        include_metadata=False,
+    )
+
+    assert df.columns == ["year", "county", "variable", "value", "se"]

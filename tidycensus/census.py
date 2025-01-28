@@ -1,9 +1,10 @@
 from __future__ import annotations, with_statement
 
-from functools import cache
+from functools import cache, reduce
 import json
 from typing import Any, Callable, Literal, Optional, Sequence, TypeAlias, get_args
 import requests
+from operator import add
 import os
 
 from rich import print
@@ -28,6 +29,13 @@ MOST_RECENT_ACS_YEAR = 2023
 # TODO: add docstrings
 
 # TODO: add examples directory
+
+
+def _geo_dependenceis(geo: GEOGRAPHY) -> tuple[GEOGRAPHY, ...]:
+    if geo == "county":
+        return ("state", "county")
+
+    return (geo,)
 
 
 def _df_from_api_response(response: list[list[Any]]) -> pl.DataFrame:
@@ -142,9 +150,15 @@ class Census:
                 _df_from_api_response(response).with_columns(year=year)
                 for year, response in zip(years, responses)
             )
+            .with_columns(
+                reduce(
+                    lambda x, y: x + y,
+                    (pl.col(g) for g in _geo_dependenceis(geography)),
+                ).alias(geography)
+            )
             .unpivot(on=variables, index=["year", geography])
             .with_columns(
-                pl.col(geography).str.to_integer(),
+                pl.col(geography).cast(pl.Categorical(ordering="lexical")),
                 # TODO: deal with exception values
                 pl.col("value").cast(pl.Float32),
             )
