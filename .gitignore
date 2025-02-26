@@ -2,5 +2,4 @@ dist/
 .DS_Store
 .pytest*
 **/__pycache__
-
 *.egg-info
