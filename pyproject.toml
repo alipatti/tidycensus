@@ -1,7 +1,3 @@
-[build-system]
-requires = ["hatchling", "uv", "polars", "joblib", "rich"]
-build-backend = "hatchling.build"
-
 [project]
 name = "tidycensus"
 version = "0.0.5"
@@ -15,8 +11,9 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
 ]
-license = "MIT"
-license-files = ["LICEN[CS]E*"]
+# license = "MIT"
+# license-files = ["LICEN[CS]E*"]
+dependencies = ["uv", "polars", "joblib", "rich"]
 
 [project.urls]
 Homepage = "https://github.com/alipatti/tidycensus"
