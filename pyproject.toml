@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling", "uv", "polars", "joblib", "rich"]
+requires = ["hatchling", "uv", "polars", "joblib", "rich", "requests",]
 build-backend = "hatchling.build"
 
 [project]
@@ -15,7 +15,12 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Operating System :: OS Independent",
 ]
-dependencies = ["polars", "joblib", "rich"]
+dependencies = [
+    "polars",
+    "joblib",
+    "rich",
+    "requests",
+]
 license = "MIT"
 license-files = ["LICEN[CS]E*"]
 

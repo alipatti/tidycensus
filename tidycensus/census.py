@@ -2,10 +2,11 @@ from __future__ import annotations, with_statement
 
 from functools import reduce
 import json
+from pathlib import Path
 from typing import Any, Callable, Literal, Optional, Sequence, TypeAlias, get_args
-import requests
 import os
 
+import requests
 from rich import print
 import polars as pl
 from joblib import Memory
@@ -75,7 +76,7 @@ class Census:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        cache_directory: Optional[str] = "/tmp/tidycensus-cache",
+        cache_directory: Optional[Path] = Path("~/.cache/tidycensus").expanduser(),
         cache_verbosity: int = 0,
     ):
         # take api key from parameter, then environment, then omit
@@ -107,7 +108,7 @@ class Census:
         if not isinstance(years, int):
             return pl.concat(self.get_metadata(dataset, year) for year in years)
 
-        url = BASE_API_URL.format(year=years, dataset=dataset) + f"/variables.json"
+        url = BASE_API_URL.format(year=years, dataset=dataset) + "/variables.json"
         response = self._api_req(url).get("variables")
 
         return (
