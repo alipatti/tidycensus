@@ -3,12 +3,14 @@ from __future__ import annotations, with_statement
 from functools import reduce
 import json
 from pathlib import Path
+import re
 from typing import Any, Callable, Literal, Optional, Sequence, TypeAlias, get_args
 import os
 
 import requests
 from rich import print
 import polars as pl
+from polars import selectors as cs
 from joblib import Memory
 
 # TODO: add more surveys
@@ -43,7 +45,6 @@ def _df_from_api_response(response: list[list[Any]]) -> pl.DataFrame:
 
 
 def _fetch(url: str, params: dict[str, Any]):
-
     response = requests.get(url, params=params)
 
     if not response.ok:
@@ -69,7 +70,6 @@ def _arrange_columns(df: pl.DataFrame) -> pl.DataFrame:
 
 
 class Census:
-
     _api_key: Optional[str]
     _fetch: Callable[[str, dict[str, Any]], Any]
 
@@ -93,7 +93,6 @@ class Census:
             print("[orange]Unable to find Census API key in the environment.")
 
     def _api_req(self, url: str, params: dict[str, Any] = {}):
-
         if self._api_key:
             params = params | {"key": self._api_key}
 
@@ -104,7 +103,6 @@ class Census:
         dataset: DATASET,
         years: int | Sequence[int],
     ):
-
         if not isinstance(years, int):
             return pl.concat(self.get_metadata(dataset, year) for year in years)
 
@@ -130,15 +128,25 @@ class Census:
         self,
         dataset: DATASET,
         years: Sequence[int],
-        variables: Sequence[str],
+        variables: Sequence[str] = [],
         geography: GEOGRAPHY = "us",
         include_metadata=True,
     ) -> pl.DataFrame:
-
         params = {
             "get": ",".join(variables),
             "for": f"{geography}:*",
         }
+
+        # get base name for all the groups
+        is_variable = reduce(
+            lambda x, y: x | y,
+            [
+                cs.starts_with(v.removeprefix("group(").removesuffix(")"))
+                if v.startswith("group(")
+                else cs.matches(v)
+                for v in variables
+            ],
+        )
 
         # construct endpoint urls
         urls = [BASE_API_URL.format(year=year, dataset=dataset) for year in years]
@@ -158,7 +166,7 @@ class Census:
                     (pl.col(g) for g in _geo_dependenceis(geography)),
                 ).alias(geography)
             )
-            .unpivot(on=variables, index=["year", geography])
+            .unpivot(on=is_variable, index=["year", geography])
             .with_columns(
                 pl.col(geography).cast(pl.Categorical(ordering="lexical")),
                 # TODO: deal with exception values
@@ -188,7 +196,6 @@ class Census:
         include_ses=True,
         include_metadata=True,
     ) -> pl.DataFrame:
-
         dataset = f"acs/{acs_version}"
 
         # if years isn't passed, use all available years

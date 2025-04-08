@@ -27,3 +27,9 @@ license-files = ["LICEN[CS]E*"]
 [project.urls]
 Homepage = "https://github.com/alipatti/tidycensus"
 
+[dependency-groups]
+dev = [
+    "ipython>=8.12.3",
+    "pytest>=8.3.5",
+]
+

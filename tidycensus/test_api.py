@@ -2,6 +2,7 @@ from tidycensus import Census
 
 
 VARS = ["B19013_001E", "B19013A_001E"]
+GROUPS = ["group(P148A)"]
 # variety of types (trailing E, M, no trailing char)
 ACS_VARS = ["B19013A_001", "B19013B_001M", "B19013C_001E"]
 
@@ -35,6 +36,17 @@ def test_get_variables():
     )
 
     assert df.columns == ["year", GEO, "variable", "value"]
+
+
+def test_get_variables_group():
+    #
+
+    df = API.get_variables(
+        "dec/sf3",
+        years=[2000],
+        variables=["group(P148A)"],
+        geography="county",
+    )
 
 
 def test_get_variables_metatdata():
@@ -76,7 +88,6 @@ def test_acs_metadata_ses():
 
 
 def test_acs_county():
-
     df = API.acs(
         list(acs_median_incomes.values()),
         geography="county",
