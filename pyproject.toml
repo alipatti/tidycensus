@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling", "uv", "polars", "joblib", "rich", "requests",]
+requires = ["hatchling", "uv"]
 build-backend = "hatchling.build"
 
 [project]
