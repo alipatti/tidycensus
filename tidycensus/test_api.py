@@ -39,8 +39,6 @@ def test_get_variables():
 
 
 def test_get_variables_group():
-    #
-
     df = API.get_variables(
         "dec/sf3",
         years=[2000],
