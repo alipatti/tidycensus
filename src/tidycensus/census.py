@@ -3,8 +3,16 @@ from __future__ import annotations, with_statement
 from functools import reduce
 import json
 from pathlib import Path
-import re
-from typing import Any, Callable, Literal, Optional, Sequence, TypeAlias, get_args
+from typing import (
+    Any,
+    Callable,
+    Literal,
+    Mapping,
+    Optional,
+    Sequence,
+    TypeAlias,
+    get_args,
+)
 import os
 
 import requests
@@ -14,19 +22,18 @@ from polars import selectors as cs
 from joblib import Memory
 
 # TODO: add more surveys
-DATASET: TypeAlias = Literal["acs/acs5", "dec/sf3"] | str
+DATASET: TypeAlias = Literal["acs/acs5", "dec/sf3", "geoinfo"] | str
 
 # TODO: add more geographies
-GEOGRAPHY: TypeAlias = Literal["us", "region", "division", "state", "county"]
+GEOGRAPHY: TypeAlias = Literal[
+    "us", "region", "division", "state", "county", "block group"
+]
 
 ACS_VERSION: TypeAlias = Literal["acs1", "acs3", "acs5"]
 
 BASE_API_URL = "https://api.census.gov/data/{year}/{dataset}"
 
 MOST_RECENT_ACS_YEAR = 2023
-
-# TODO: add support for getting entire groups of variables
-#   (use the groups(...) parameter in the census api)
 
 # TODO: add docstrings
 
@@ -127,11 +134,15 @@ class Census:
     def get_variables(
         self,
         dataset: DATASET,
+        *,
         years: Sequence[int],
         variables: Sequence[str] = [],
         geography: GEOGRAPHY = "us",
+        filter: Mapping[GEOGRAPHY, str] = {},
         include_metadata=True,
     ) -> pl.DataFrame:
+        " ".join(f"{k}:{v}" for k, v in filter.items())
+
         params = {
             "get": ",".join(variables),
             "for": f"{geography}:*",
@@ -170,7 +181,7 @@ class Census:
             .with_columns(
                 pl.col(geography).cast(pl.Categorical(ordering="lexical")),
                 # TODO: deal with exception values
-                pl.col("value").cast(pl.Float32),
+                pl.col("value").cast(pl.Float32, strict=False),
             )
             .sort("year", geography, "variable")
         )
