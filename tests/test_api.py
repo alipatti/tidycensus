@@ -19,7 +19,10 @@ acs_median_incomes = {
 GEO = "state"
 YEARS = [2010, 2012]
 
-API = Census(cache_verbosity=2)
+API = Census()
+
+# TODO: add tests for small geo e.g. block group
+# TODO: add filter
 
 
 def test_metadata():

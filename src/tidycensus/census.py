@@ -23,39 +23,16 @@ MOST_RECENT_ACS_YEAR = 2023
 # TODO: add examples to readme
 
 
-def _geo_dependenceis(geo: Geography) -> tuple[Geography, ...]:
-    if geo == "county":
-        return ("state", "county")
-
-    return (geo,)
-
-
-def _df_from_api_response(response: list[list[Any]]) -> pl.DataFrame:
-    return pl.from_records(response[1:], schema=response[0], orient="row")
-
-
-def _arrange_columns(df: pl.DataFrame) -> pl.DataFrame:
-    all_columns = [
-        "year",
-        *get_args(Geography),
-        "concept",
-        "label",
-        "variable",
-        "value",
-        "se",
-    ]
-
-    return df.select(c for c in all_columns if c in df.columns)
-
-
 class Census:
     _api_key: Optional[str]
     session: CachedSession | requests.Session
+    verbose: bool
 
     def __init__(
         self,
         api_key: Optional[str] = None,
         cache: Optional[Path] = Path("~/.cache/tidycensus/cache.sqlite").expanduser(),
+        verbose: bool = False,
         **kwargs,
     ):
         # take api key from parameter, then environment, then omit
@@ -68,12 +45,17 @@ class Census:
             CachedSession(cache, **kwargs) if cache else requests.Session(**kwargs)
         )
 
+        self.verbose = verbose
+
     def _api_req(self, url: str, params: dict[str, Any] = {}):
         # add api key to parameters
         if self._api_key:
             params = params | {"key": self._api_key}
 
         response = self.session.get(url, params=params)
+
+        if self.verbose:
+            print("[request]", response.request.url)
 
         if not response.ok:
             raise RuntimeError(
@@ -184,13 +166,18 @@ class Census:
 
     def acs(
         self,
-        variables: Sequence[str],
+        variables: Sequence[str] | str,
+        *,
+        years: Sequence[int] | int | None = None,
         acs_version: AcsVersion = "acs5",
         geography: Geography = "us",
-        years: Optional[Sequence[int]] = None,
+        filter: Mapping[Geography, str] | None = None,
         include_ses=True,
         include_metadata=True,
     ) -> pl.DataFrame:
+        if isinstance(variables, str):
+            variables = [variables]
+
         dataset = f"acs/{acs_version}"
 
         # if years isn't passed, use all available years
@@ -210,6 +197,7 @@ class Census:
             variables=variables,
             years=years,
             geography=geography,
+            filter=filter,
             include_metadata=False,
         )
 
@@ -241,3 +229,36 @@ class Census:
             right_on=["year", "variable"],
             validate="m:1",
         ).pipe(_arrange_columns)
+
+
+def _geo_dependenceis(geo: Geography) -> tuple[Geography, ...]:
+    # NOTE: could be cuter here
+
+    if geo == "county":
+        return ("state", "county")
+
+    if geo == "tract":
+        return ("state", "county", "tract")
+
+    if geo == "block group":
+        return ("state", "county", "tract", "block group")
+
+    return (geo,)
+
+
+def _df_from_api_response(response: list[list[Any]]) -> pl.DataFrame:
+    return pl.from_records(response[1:], schema=response[0], orient="row")
+
+
+def _arrange_columns(df: pl.DataFrame) -> pl.DataFrame:
+    all_columns = [
+        "year",
+        *get_args(Geography),
+        "concept",
+        "label",
+        "variable",
+        "value",
+        "se",
+    ]
+
+    return df.select(c for c in all_columns if c in df.columns)
