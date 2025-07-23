@@ -15,7 +15,7 @@ import requests
 from rich import print
 import polars as pl
 from polars import selectors as cs
-from joblib import Memory
+from requests_cache import CachedSession
 
 
 from tidycensus.types import Geography, AcsVersion, Dataset
@@ -40,17 +40,6 @@ def _df_from_api_response(response: list[list[Any]]) -> pl.DataFrame:
     return pl.from_records(response[1:], schema=response[0], orient="row")
 
 
-def _fetch(url: str, params: dict[str, Any]):
-    response = requests.get(url, params=params)
-
-    if not response.ok:
-        print("[red][bold] --- REQUEST FAILED --- ")
-        print(f"[red]{response.url}")
-        raise RuntimeError("Unexpected response from Census API.")
-
-    return response.content
-
-
 def _arrange_columns(df: pl.DataFrame) -> pl.DataFrame:
     all_columns = [
         "year",
@@ -67,32 +56,38 @@ def _arrange_columns(df: pl.DataFrame) -> pl.DataFrame:
 
 class Census:
     _api_key: Optional[str]
-    _fetch: Callable[[str, dict[str, Any]], Any]
+    session: CachedSession | requests.Session
 
     def __init__(
         self,
         api_key: Optional[str] = None,
-        cache_directory: Optional[Path] = Path("~/.cache/tidycensus").expanduser(),
-        cache_verbosity: int = 0,
+        cache: Optional[Path] = Path("~/.cache/tidycensus/cache.sqlite").expanduser(),
+        **kwargs,
     ):
         # take api key from parameter, then environment, then omit
         self._api_key = api_key or os.environ.get("CENSUS_API_KEY") or None
 
-        # cache the api responses if cache_directory is set, otherwise don't
-        self._fetch = (
-            Memory(cache_directory, verbose=cache_verbosity).cache(_fetch)
-            if cache_directory
-            else _fetch
-        )
-
         if not self._api_key:
             print("[orange]Unable to find Census API key in the environment.")
 
+        self.session = (
+            CachedSession(cache, **kwargs) if cache else requests.Session(**kwargs)
+        )
+
     def _api_req(self, url: str, params: dict[str, Any] = {}):
+        # add api key to parameters
         if self._api_key:
             params = params | {"key": self._api_key}
 
-        return json.loads(self._fetch(url, params))
+        response = self.session.get(url, params=params)
+
+        if not response.ok:
+            print("[red][bold] --- REQUEST FAILED --- ")
+            print(f"[red]{response.url}")
+
+            raise RuntimeError("Unexpected response from Census API.")
+
+        return json.loads(response.content)
 
     def get_metadata(
         self,
