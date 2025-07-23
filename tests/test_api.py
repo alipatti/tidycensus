@@ -29,8 +29,8 @@ def test_metadata():
 def test_get_variables():
     df = API.get_variables(
         "acs/acs5",
-        YEARS,
-        VARS,
+        years=YEARS,
+        variables=VARS,
         geography=GEO,
         include_metadata=False,
     )
@@ -50,8 +50,8 @@ def test_get_variables_group():
 def test_get_variables_metatdata():
     df = API.get_variables(
         "acs/acs5",
-        YEARS,
-        VARS,
+        years=YEARS,
+        variables=VARS,
         geography=GEO,
         include_metadata=True,
     )
