@@ -114,11 +114,14 @@ class Census:
         dataset: Dataset,
         *,
         years: Sequence[int],
-        variables: Sequence[str] = [],
+        variables: str | Sequence[str] = [],
         geography: Geography = "us",
         filter: Mapping[Geography, str] = {},
         include_metadata=True,
     ) -> pl.DataFrame:
+        if isinstance(variables, str):
+            variables = [variables]
+
         " ".join(f"{k}:{v}" for k, v in filter.items())
 
         params = {
