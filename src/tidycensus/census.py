@@ -1,16 +1,12 @@
-from __future__ import annotations, with_statement
-
 from functools import reduce
 import json
 from pathlib import Path
 from typing import (
     Any,
     Callable,
-    Literal,
     Mapping,
     Optional,
     Sequence,
-    TypeAlias,
     get_args,
 )
 import os
@@ -21,15 +17,8 @@ import polars as pl
 from polars import selectors as cs
 from joblib import Memory
 
-# TODO: add more surveys
-DATASET: TypeAlias = Literal["acs/acs5", "dec/sf3", "geoinfo"] | str
 
-# TODO: add more geographies
-GEOGRAPHY: TypeAlias = Literal[
-    "us", "region", "division", "state", "county", "block group"
-]
-
-ACS_VERSION: TypeAlias = Literal["acs1", "acs3", "acs5"]
+from tidycensus.types import Geography, AcsVersion, Dataset
 
 BASE_API_URL = "https://api.census.gov/data/{year}/{dataset}"
 
@@ -37,10 +26,10 @@ MOST_RECENT_ACS_YEAR = 2023
 
 # TODO: add docstrings
 
-# TODO: add examples directory
+# TODO: add examples to readme
 
 
-def _geo_dependenceis(geo: GEOGRAPHY) -> tuple[GEOGRAPHY, ...]:
+def _geo_dependenceis(geo: Geography) -> tuple[Geography, ...]:
     if geo == "county":
         return ("state", "county")
 
@@ -65,7 +54,7 @@ def _fetch(url: str, params: dict[str, Any]):
 def _arrange_columns(df: pl.DataFrame) -> pl.DataFrame:
     all_columns = [
         "year",
-        *get_args(GEOGRAPHY),
+        *get_args(Geography),
         "concept",
         "label",
         "variable",
@@ -107,7 +96,7 @@ class Census:
 
     def get_metadata(
         self,
-        dataset: DATASET,
+        dataset: Dataset,
         years: int | Sequence[int],
     ):
         if not isinstance(years, int):
@@ -133,12 +122,12 @@ class Census:
 
     def get_variables(
         self,
-        dataset: DATASET,
+        dataset: Dataset,
         *,
         years: Sequence[int],
         variables: Sequence[str] = [],
-        geography: GEOGRAPHY = "us",
-        filter: Mapping[GEOGRAPHY, str] = {},
+        geography: Geography = "us",
+        filter: Mapping[Geography, str] = {},
         include_metadata=True,
     ) -> pl.DataFrame:
         " ".join(f"{k}:{v}" for k, v in filter.items())
@@ -201,8 +190,8 @@ class Census:
     def acs(
         self,
         variables: Sequence[str],
-        acs_version: ACS_VERSION = "acs5",
-        geography: GEOGRAPHY = "us",
+        acs_version: AcsVersion = "acs5",
+        geography: Geography = "us",
         years: Optional[Sequence[int]] = None,
         include_ses=True,
         include_metadata=True,
