@@ -76,10 +76,9 @@ class Census:
         response = self.session.get(url, params=params)
 
         if not response.ok:
-            print("[red][bold] --- REQUEST FAILED --- ")
-            print(f"[red]{response.url}")
-
-            raise RuntimeError("Unexpected response from Census API.")
+            raise RuntimeError(
+                f"Unexpected response from Census API\n{response.url}\n\n{response.text}."
+            )
 
         return json.loads(response.content)
 
@@ -113,21 +112,25 @@ class Census:
         self,
         dataset: Dataset,
         *,
-        years: Sequence[int],
-        variables: str | Sequence[str] = [],
+        years: int | Sequence[int],
+        variables: str | Sequence[str],
         geography: Geography = "us",
-        filter: Mapping[Geography, str] = {},
+        filter: Mapping[Geography, str] | None = None,
         include_metadata=True,
     ) -> pl.DataFrame:
+        if isinstance(years, int):
+            years = [years]
+
         if isinstance(variables, str):
             variables = [variables]
-
-        " ".join(f"{k}:{v}" for k, v in filter.items())
 
         params = {
             "get": ",".join(variables),
             "for": f"{geography}:*",
         }
+
+        if filter:
+            params |= {"in": " ".join(f"{k}:{v}" for k, v in filter.items())}
 
         # get base name for all the groups
         is_variable = reduce(
