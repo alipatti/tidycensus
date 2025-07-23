@@ -1,14 +1,8 @@
 from functools import reduce
 import json
 from pathlib import Path
-from typing import (
-    Any,
-    Callable,
-    Mapping,
-    Optional,
-    Sequence,
-    get_args,
-)
+from typing import Any, Optional, get_args
+from collections.abc import Mapping, Sequence
 import os
 
 import requests
